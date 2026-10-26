@@ -23,17 +23,64 @@ class _MainHomePageState extends State<MainHomePage>
   bool prevConnected = true;
   String qod;
   String qodAuthor;
+  bool _quoteLoading = true;
+
+  static const List<Map<String, String>> _fallbackQuotes = [
+    {
+      'quote':
+          '"The future belongs to those who believe in the beauty of their dreams."',
+      'author': '- Eleanor Roosevelt',
+    },
+    {
+      'quote':
+          '"Education is the most powerful weapon which you can use to change the world."',
+      'author': '- Nelson Mandela',
+    },
+    {
+      'quote': '"The only way to do great work is to love what you do."',
+      'author': '- Steve Jobs',
+    },
+  ];
 
   @override
   void initState() {
     super.initState();
-    http.get('https://quotes.rest/qod').then((response) {
+    _fetchQuote();
+  }
+
+  Future<void> _fetchQuote() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://quotes.rest/qod'),
+      ).timeout(const Duration(seconds: 10));
+
       if (response.statusCode == 200) {
-        var temp = jsonDecode(response.body)['contents']['quotes'][0];
-        qod = '\"' + temp['quote'] + '\"';
-        qodAuthor = '- ' + temp['author'];
-        setState(() {});
+        final data = jsonDecode(response.body);
+        if (data['contents'] != null &&
+            data['contents']['quotes'] != null &&
+            data['contents']['quotes'].isNotEmpty) {
+          final temp = data['contents']['quotes'][0];
+          setState(() {
+            qod = '"' + (temp['quote'] ?? '') + '"';
+            qodAuthor = '- ' + (temp['author'] ?? 'Unknown');
+            _quoteLoading = false;
+          });
+          return;
+        }
       }
+    } catch (e) {
+      // API unreachable or parsing failed — use fallback quote
+    }
+    _showFallbackQuote();
+  }
+
+  void _showFallbackQuote() {
+    final fallback = _fallbackQuotes[
+        DateTime.now().millisecondsSinceEpoch % _fallbackQuotes.length];
+    setState(() {
+      qod = fallback['quote'];
+      qodAuthor = fallback['author'];
+      _quoteLoading = false;
     });
   }
 
@@ -127,21 +174,34 @@ class _MainHomePageState extends State<MainHomePage>
               SizedBox(height: 10),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16.0, 0, 16, 0),
-                child: Text(
-                  qod ?? '',
-                  style: TextStyle(
-                      fontSize: 12.0,
-                      fontStyle: FontStyle.italic,
-                      color: theme.textSubheadingColor),
-                ),
-              ),
-              Text(
-                qodAuthor ?? '',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                    fontSize: 12.0,
-                    fontStyle: FontStyle.italic,
-                    color: theme.textSubheadingColor),
+                child: _quoteLoading
+                    ? const SizedBox(
+                        height: 12,
+                        width: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            qod ?? '',
+                            style: TextStyle(
+                                fontSize: 12.0,
+                                fontStyle: FontStyle.italic,
+                                color: theme.textSubheadingColor),
+                          ),
+                          Text(
+                            qodAuthor ?? '',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                                fontSize: 12.0,
+                                fontStyle: FontStyle.italic,
+                                color: theme.textSubheadingColor),
+                          ),
+                        ],
+                      ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(32.0, 16, 16, 0),
